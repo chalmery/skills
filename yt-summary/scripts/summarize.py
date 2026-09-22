@@ -2,7 +2,7 @@
 """yt-summary 总结脚本：读取转写文本，生成中文结构化摘要。
 
 两种模式:
-1. 本地总结（推荐）: 使用 Ollama 本地大模型生成摘要（完全离线/免费）
+1. 本地总结（推荐）: 使用 Ollama 本地大模型生成摘要（内容在本机处理）
    python3 summarize.py <transcript.txt> [--ollama qwen2.5:7b]
 2. 提示词模式: 生成一段可直接粘贴给任意 AI 助手的总结提示词
    python3 summarize.py <transcript.txt> --prompt-only

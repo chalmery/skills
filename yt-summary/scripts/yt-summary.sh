@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # yt-summary - YouTube 视频转写脚本（利用 AMD GPU via Vulkan）
-# 位置: ~/.config/opencode/skills/yt-summary/scripts/yt-summary.sh
+# 可从任意受支持的 Agent Skills 目录运行
 #
 # 功能: 下载音频 → 转16kHz WAV → whisper.cpp(GPU)转写 → 输出带时间戳文本
 # 依赖: yt-dlp, ffmpeg, node(js-runtime), whisper.cpp(Vulkan 编译)

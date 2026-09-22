@@ -2,18 +2,18 @@
 # -*- coding: utf-8 -*-
 """
 akdata.py - 股票数据 CLI（仅保留实测可用的接口）
-数据源可用性基于 2026-08-29 网络实测，输出统一为 JSON，便于 AI 解析。
+数据来自公开行情接口，输出统一为 JSON，便于 Agent 解析。
 
 用法:
-  python3 akdata.py kline   600519 daily qfq --start 20250101 --end 20260808   # A股K线
-  python3 akdata.py kline   QQQ daily --start 20250101 --end 20260808           # 美股K线
+  python3 akdata.py kline   600519 daily --adjust qfq --start 20250101          # A股K线
+  python3 akdata.py kline   QQQ daily --start 20250101                          # 美股K线
   python3 akdata.py quote   600519      # A股实时行情(腾讯)
   python3 akdata.py quote   QQQ         # 美股实时行情(腾讯)
   python3 akdata.py spot    --top 20    # 全市场快照(腾讯)
   python3 akdata.py list                # A股股票列表(东财)
   python3 akdata.py financial 600519    # 财务摘要(东财)
   python3 akdata.py fundflow 600519     # 个股资金流(新浪)
-  python3 akdata.py lhb     --start 20250801 --end 20260808  # 龙虎榜(东财)
+  python3 akdata.py lhb     --start 20260101                  # 龙虎榜(东财)
   python3 akdata.py news    600519      # 个股新闻(东财)
   python3 akdata.py index   sh000001    # 指数日线(新浪)
   python3 akdata.py indicator 600519    # 财务分析指标(新浪)
@@ -21,6 +21,7 @@ akdata.py - 股票数据 CLI（仅保留实测可用的接口）
 
 import argparse
 import contextlib
+import datetime as dt
 import io
 import json
 import re
@@ -32,6 +33,11 @@ import requests
 # 东财K线主域名 push2his.eastmoney.com 不通，使用可用的 20 子域
 EM_KLINE_HOST = "https://20.push2his.eastmoney.com"
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+
+def _date_days_ago(days):
+    """返回相对今天的 YYYYMMDD 日期，避免默认查询区间随时间失效。"""
+    return (dt.date.today() - dt.timedelta(days=days)).strftime("%Y%m%d")
 
 
 def _quiet(fn):
@@ -336,8 +342,8 @@ def main():
     sp.add_argument("symbol", help="6位数字=A股(600519), 字母=美股(QQQ/AAPL)")
     sp.add_argument("period", choices=["daily", "weekly", "monthly", "1", "5", "15", "30", "60"])
     sp.add_argument("--adjust", choices=["", "qfq", "hfq"], default="qfq", help="复权方式")
-    sp.add_argument("--start", default="20250101")
-    sp.add_argument("--end", default="20260829")
+    sp.add_argument("--start", default=_date_days_ago(365))
+    sp.add_argument("--end", default=_date_days_ago(0))
     add_common(sp)
 
     sp = sub.add_parser("quote", help="单只实时行情(腾讯, A股/美股)")
@@ -361,8 +367,8 @@ def main():
     add_common(sp)
 
     sp = sub.add_parser("lhb", help="龙虎榜(东财)")
-    sp.add_argument("--start", default="20250801")
-    sp.add_argument("--end", default="20260829")
+    sp.add_argument("--start", default=_date_days_ago(30))
+    sp.add_argument("--end", default=_date_days_ago(0))
     add_common(sp)
 
     sp = sub.add_parser("news", help="个股新闻(东财)")

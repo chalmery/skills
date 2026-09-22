@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 """
 binance.py - 加密货币数据 CLI（币安公开 API，无需密钥）
-数据源可用性基于 2026-08-29 网络实测，输出统一为 JSON，便于 AI 解析。
+数据来自 Binance 公开现货 API，输出统一为 JSON，便于 Agent 解析。
 
 用法:
   python3 binance.py price   BTCUSDT                  # 单币实时价格
   python3 binance.py prices                          # 全部币种价格
   python3 binance.py ticker  BTCUSDT                  # 24小时统计(涨跌幅/高低/量额)
-  python3 binance.py kline   BTCUSDT daily --start 20260801 --end 20260829   # 历史K线
+  python3 binance.py kline   BTCUSDT daily --start 20260101                 # 历史K线
   python3 binance.py kline   BTCUSDT 1h  --max-rows 100                      # 分钟/小时K线
   python3 binance.py depth   BTCUSDT --limit 20       # 订单簿深度(买一卖一/买卖盘)
   python3 binance.py trades  BTCUSDT --limit 10       # 最近成交

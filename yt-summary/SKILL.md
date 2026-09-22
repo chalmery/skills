@@ -1,88 +1,59 @@
 ---
 name: yt-summary
-description: "YouTube 视频本地转写+总结工具。基于 yt-dlp + whisper.cpp(Vulkan) 利用 AMD GPU 加速，全本地运行（无需 API key）。触发器：'总结视频'、'视频转文字'、'YouTube 总结'、'转写'、'yt-summary'、'youtube 视频总结'、'下载视频转文字'。使用方式：调用 scripts/yt-summary.sh 下载转写，scripts/summarize.py 总结。"
+description: 下载 YouTube 视频音频并在本机用 whisper.cpp 转写，可继续用本地 Ollama 生成中文摘要。当用户给出 YouTube 链接并要求转写、提取内容或总结视频时使用；不适用于普通网页或已有文本的摘要。
 ---
 
-# YouTube 视频本地转写 + 总结
+# YouTube 本地转写与总结
 
-基于 **yt-dlp + whisper.cpp(Vulkan) + Ollama** 的全本地流水线，利用 AMD GPU（RX 9070 GRE 已验证）做 Whisper 加速转写，无需任何 API key、无需上传云端。支持中文视频自动识别。
+该工作流用 `yt-dlp` 下载音频、FFmpeg 转换格式、whisper.cpp 转写，并可用 Ollama 总结。音频获取需要联网；转写和默认总结在本机完成，不会主动把内容上传到第三方模型服务。
 
-## 架构
+## 执行原则
 
-```
-YouTube URL → yt-dlp(下载音频) → ffmpeg(转16kHz WAV) → whisper.cpp Vulkan(GPU转写)
-                → transcript.txt(带时间戳) → summarize.py(本地LLM总结) → summary.md
-```
+1. 根据本 `SKILL.md` 的实际路径确定 Skill 目录，不要假设固定的 Agent 安装路径。
+2. 用户只要求摘要时，也先获得可靠转写；不要仅根据视频标题或简介编造内容。
+3. 运行结束后报告转写文件和摘要文件的实际路径，并说明自动转写可能存在专有名词、数字和同音字错误。
+4. 处理长视频时检查是否发生文本截断；涉及关键数字、引述或争议结论时回看相应时间段，不把机器转写当成逐字校对稿。
+5. 遵守视频版权与平台规则，只处理用户有权访问和用于个人学习、研究的内容。
 
 ## 环境要求
 
-- **yt-dlp**（下载音频，需可访问 YouTube）
-- **ffmpeg**（音频格式转换）
-- **node**（yt-dlp 的 JS runtime，解决部分视频 403/签名解密问题）
-- **whisper.cpp**（Vulkan 编译版，GPU 加速）— 已安装在 `~/.local/share/yt-summary/whisper.cpp`
-- **Ollama**（本地 LLM 总结，ROCm 加速，服务已开机自启）— `qwen2.5:7b` 模型已就绪
+- `yt-dlp`、FFmpeg；Node.js 可提高部分 YouTube 视频的解析成功率。
+- whisper.cpp 可执行文件，默认位置为 `~/.local/share/yt-summary/whisper.cpp/build/bin/whisper-cli`。
+- Whisper 模型；缺失时转写脚本会调用 whisper.cpp 自带的下载脚本。
+- Ollama 仅在需要本地自动总结时使用；`--prompt-only` 模式不要求 Ollama。
 
-## 使用步骤
+可用环境变量：
 
-### 1. 转写视频（核心命令）
+- `WHISPER_DIR`：覆盖 whisper.cpp 根目录。
+- `YT_SUMMARY_OUT`：覆盖输出根目录，默认 `~/yt-summary`。
+- `YT_SUMMARY_MAX_CHARS`：限制送入本地模型的转写字符数，默认 `60000`。
 
-```bash
-bash ~/.config/opencode/skills/yt-summary/scripts/yt-summary.sh "<YouTube链接>" [模型名]
-```
+## 使用方式
 
-- 模型可选：`tiny` | `base` | `small`(默认) | `medium` | `large`
-- **small 模型**：质量/速度平衡，22 分钟中文视频约 2 分钟转写完成
-- **medium 模型**：中文更准，速度约为 small 的 1/4
-- 输出：`~/yt-summary/<视频ID>/transcript.txt`（带时间戳）
-
-### 2. 总结转写文本
+以下示例中的 `SKILL_DIR` 表示本文件所在目录：
 
 ```bash
-# 方式 A：本地 Ollama 总结（推荐，完全离线）
-python3 ~/.config/opencode/skills/yt-summary/scripts/summarize.py ~/yt-summary/<视频ID>/transcript.txt
+SKILL_DIR="<yt-summary 的实际目录>"
 
-# 方式 B：只生成提示词，粘贴给任意 AI（无 Ollama 时）
-python3 ~/.config/opencode/skills/yt-summary/scripts/summarize.py ~/yt-summary/<视频ID>/transcript.txt --prompt-only
+# 下载音频并转写；模型可选 tiny/base/small/medium/large
+bash "$SKILL_DIR/scripts/yt-summary.sh" "<YouTube URL>" small
+
+# 用本地 Ollama 总结实际生成的 transcript.txt
+python3 "$SKILL_DIR/scripts/summarize.py" "/实际输出目录/transcript.txt"
+
+# 只生成总结提示词，不调用 Ollama
+python3 "$SKILL_DIR/scripts/summarize.py" "/实际输出目录/transcript.txt" --prompt-only
+
+# 选择其他本地模型
+python3 "$SKILL_DIR/scripts/summarize.py" "/实际输出目录/transcript.txt" --ollama qwen2.5:7b
 ```
 
-输出：`transcript_summary.md`
+转写结果默认写入 `~/yt-summary/<视频ID>/transcript.txt`，摘要写入同目录的 `transcript_summary.md`。应以脚本实际输出为准，不要为了寻找视频 ID 再重复请求 YouTube。
 
-### 3. 一步到位（转写+总结）
+## 故障边界
 
-```bash
-yt_summary_pipeline() {
-  bash ~/.config/opencode/skills/yt-summary/scripts/yt-summary.sh "$1" "${2:-small}"
-  local id
-  id=$(yt-dlp --print "%(id)s" --no-warnings "$1")
-  python3 ~/.config/opencode/skills/yt-summary/scripts/summarize.py ~/yt-summary/"$id"/transcript.txt
-}
-```
-
-## 常见问题
-
-1. **视频下载 403 / 需要 JS runtime**：脚本已自动带上 `--js-runtimes node`，确保 node 已安装。
-2. **libwhisper.so.1 找不到**：脚本内已设置 `LD_LIBRARY_PATH` 指向 `build/bin`。
-3. **GPU 未识别**：运行 `vulkaninfo --summary` 检查 Vulkan 驱动（Mesa radv）。若报 `glslc`/`SPIRV-Headers` 缺失，需安装：
-   ```
-   pkexec dnf install -y vulkan-devel glslc spirv-headers-devel
-   ```
-4. **模型未下载**：脚本会自动触发 `models/download-ggml-model.sh`。
-5. **无字幕视频**：whisper 直接转写音频，不依赖 YouTube 字幕，中文准确度高。
-6. **长视频（>1小时）**：转写时间随时长线性增长，建议用 small 模型；如遇上下文超限，summarize.py 会自动截断（默认 60000 字符，可用环境变量 `YT_SUMMARY_MAX_CHARS` 调整）。
-
-## 已装组件清单
-
-| 组件 | 位置 | 说明 |
-|---|---|---|
-| whisper.cpp (Vulkan) | `~/.local/share/yt-summary/whisper.cpp` | 编译产物含 `build/bin/whisper-cli` |
-| small 模型 | `~/.local/share/yt-summary/whisper.cpp/models/ggml-small.bin` | 466MB，中文友好 |
-| 转写脚本 | `scripts/yt-summary.sh` | 下载→转写 一键完成 |
-| 总结脚本 | `scripts/summarize.py` | Ollama 本地总结（qwen2.5:7b 已装）/ 提示词模式 |
-| Ollama | 系统服务（开机自启） | ROCm 加速 AMD GPU，模型存于 `/var/lib/ollama/.ollama/models` |
-| 转写结果示例 | `~/yt-summary/NfcbziRSqfs/transcript.txt` | 示例视频（方脸说：通缩时代） |
-
-## 注意事项
-
-- 本工具仅用于个人学习、研究用途。请尊重视频版权，勿将转写内容用于商业用途。
-- 转写文本由 Whisper 自动生成，可能存在同音字/专有名词误差，总结时请注意核对。
-- `/tmp` 是内存盘（tmpfs），**所有工具文件已迁移至 `~/.local/share/yt-summary/`**，重启不丢失。
+- 下载失败：先检查 URL、网络、`yt-dlp` 版本与 Node.js；不要绕过需要登录、地区限制或版权限制的内容。
+- whisper.cpp 不存在：按脚本显示的路径检查 `WHISPER_DIR` 和 Vulkan 构建产物。
+- GPU 不可用：报告当前环境问题；是否改用 CPU、重编译或安装系统包应由用户决定。
+- Ollama 不存在：脚本会输出提示词而不是本地摘要。这不等于已经生成摘要，应明确告诉用户当前产物是什么。
+- 长文本：当前总结脚本会按 `YT_SUMMARY_MAX_CHARS` 截断，可能遗漏视频后半段；需要完整覆盖时，应分段总结后再综合。
